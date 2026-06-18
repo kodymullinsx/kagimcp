@@ -16,12 +16,12 @@ from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
-from openapi_client.models.search200_response import Search200Response
-from openapi_client.models.search_request import SearchRequest
+from kagimcp.openapi_client.models.search200_response import Search200Response
+from kagimcp.openapi_client.models.search_request import SearchRequest
 
-from openapi_client.api_client import ApiClient, RequestSerialized
-from openapi_client.api_response import ApiResponse
-from openapi_client.rest import RESTResponseType
+from kagimcp.openapi_client.api_client import ApiClient, RequestSerialized
+from kagimcp.openapi_client.api_response import ApiResponse
+from kagimcp.openapi_client.rest import RESTResponseType
 
 
 class SearchApi:

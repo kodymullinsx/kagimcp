@@ -112,10 +112,12 @@ Environment variable | Description
 --- | ---
 `KAGI_API_KEY` | Required Kagi API key.
 `FASTMCP_LOG_LEVEL` | Logging level, for example `ERROR`.
-`KAGI_SEARCH_TIMEOUT` | Search timeout in seconds. Defaults to `10`.
-`KAGI_EXTRACT_TIMEOUT` | Extract timeout in seconds. Defaults to `30`.
-`KAGI_MAX_RETRIES` | Max retry attempts after the first request. Defaults to `2`; set `0` to disable retries.
+`KAGI_SEARCH_TIMEOUT` | Per-attempt search timeout in seconds. Defaults to `10`.
+`KAGI_EXTRACT_TIMEOUT` | Per-attempt extract timeout in seconds. Defaults to `30`.
+`KAGI_MAX_RETRIES` | Max retry attempts after the first request for retry-eligible methods. Defaults to `2`; set `0` to disable retries.
 `KAGI_HIDDEN_PARAMS` | Comma-separated search params to hide from the LLM-facing schema.
+
+Kagi Search and Extract use POST requests and are not retried by default, to avoid replaying potentially billable operations. Timeout values are per upstream HTTP request attempt. Future retry-eligible safe or idempotent calls may take longer than the per-attempt timeout because of retries, backoff, or `Retry-After` handling.
 
 Hideable search params:
 

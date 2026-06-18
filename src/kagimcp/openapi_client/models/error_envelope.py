@@ -18,24 +18,22 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
-from openapi_client.models.search_result_image import SearchResultImage
+from kagimcp.openapi_client.models.error_detail import ErrorDetail
+from kagimcp.openapi_client.models.meta import Meta
 from typing import Optional, Set
 from typing_extensions import Self
 from pydantic_core import to_jsonable_python
 
-class SearchResult(BaseModel):
+class ErrorEnvelope(BaseModel):
     """
-    A search result that fulfills the query sent to the kagi API
+    API error response envelope containing metadata and an array of error details
     """ # noqa: E501
-    url: StrictStr = Field(description="The location of the result. This is the direct URL to the resource that matches the query")
-    title: StrictStr = Field(description="This is the title of the resource. For HTML documents, it reflects `<title>`. For videos, it is the name that would be displayed on the video site.")
-    snippet: Optional[StrictStr] = Field(default=None, description="A short summary of the contents of the resource")
-    time: Optional[StrictStr] = Field(default=None, description="The date when the resource was created or last updated.")
-    image: Optional[SearchResultImage] = None
-    props: Optional[Dict[str, Any]] = Field(default=None, description="Holds arbitrary result metadata")
-    __properties: ClassVar[List[str]] = ["url", "title", "snippet", "time", "image", "props"]
+    meta: Meta
+    data: Optional[List[Any]] = Field(default=None, description="Empty data array when error occurs")
+    error: List[ErrorDetail] = Field(description="Array of error detail objects describing what went wrong")
+    __properties: ClassVar[List[str]] = ["meta", "data", "error"]
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -55,7 +53,7 @@ class SearchResult(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of SearchResult from a JSON string"""
+        """Create an instance of ErrorEnvelope from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -76,14 +74,26 @@ class SearchResult(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of image
-        if self.image:
-            _dict['image'] = self.image.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of meta
+        if self.meta:
+            _dict['meta'] = self.meta.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of each item in error (list)
+        _items = []
+        if self.error:
+            for _item_error in self.error:
+                if _item_error:
+                    _items.append(_item_error.to_dict())
+            _dict['error'] = _items
+        # set to None if data (nullable) is None
+        # and model_fields_set contains the field
+        if self.data is None and "data" in self.model_fields_set:
+            _dict['data'] = None
+
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of SearchResult from a dict"""
+        """Create an instance of ErrorEnvelope from a dict"""
         if obj is None:
             return None
 
@@ -91,12 +101,9 @@ class SearchResult(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "url": obj.get("url"),
-            "title": obj.get("title"),
-            "snippet": obj.get("snippet"),
-            "time": obj.get("time"),
-            "image": SearchResultImage.from_dict(obj["image"]) if obj.get("image") is not None else None,
-            "props": obj.get("props")
+            "meta": Meta.from_dict(obj["meta"]) if obj.get("meta") is not None else None,
+            "data": obj.get("data"),
+            "error": [ErrorDetail.from_dict(_item) for _item in obj["error"]] if obj.get("error") is not None else None
         })
         return _obj
 

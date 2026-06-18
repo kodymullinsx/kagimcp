@@ -51,37 +51,37 @@ __all__ = [
 ]
 
 # import apis into sdk package
-from openapi_client.api.extract_api import ExtractApi as ExtractApi
-from openapi_client.api.search_api import SearchApi as SearchApi
+from kagimcp.openapi_client.api.extract_api import ExtractApi as ExtractApi
+from kagimcp.openapi_client.api.search_api import SearchApi as SearchApi
 
 # import ApiClient
-from openapi_client.api_response import ApiResponse as ApiResponse
-from openapi_client.api_client import ApiClient as ApiClient
-from openapi_client.configuration import Configuration as Configuration
-from openapi_client.exceptions import OpenApiException as OpenApiException
-from openapi_client.exceptions import ApiTypeError as ApiTypeError
-from openapi_client.exceptions import ApiValueError as ApiValueError
-from openapi_client.exceptions import ApiKeyError as ApiKeyError
-from openapi_client.exceptions import ApiAttributeError as ApiAttributeError
-from openapi_client.exceptions import ApiException as ApiException
+from kagimcp.openapi_client.api_response import ApiResponse as ApiResponse
+from kagimcp.openapi_client.api_client import ApiClient as ApiClient
+from kagimcp.openapi_client.configuration import Configuration as Configuration
+from kagimcp.openapi_client.exceptions import OpenApiException as OpenApiException
+from kagimcp.openapi_client.exceptions import ApiTypeError as ApiTypeError
+from kagimcp.openapi_client.exceptions import ApiValueError as ApiValueError
+from kagimcp.openapi_client.exceptions import ApiKeyError as ApiKeyError
+from kagimcp.openapi_client.exceptions import ApiAttributeError as ApiAttributeError
+from kagimcp.openapi_client.exceptions import ApiException as ApiException
 
 # import models into sdk package
-from openapi_client.models.error_detail import ErrorDetail as ErrorDetail
-from openapi_client.models.error_envelope import ErrorEnvelope as ErrorEnvelope
-from openapi_client.models.extract_request import ExtractRequest as ExtractRequest
-from openapi_client.models.extract_response import ExtractResponse as ExtractResponse
-from openapi_client.models.meta import Meta as Meta
-from openapi_client.models.page_input import PageInput as PageInput
-from openapi_client.models.page_output import PageOutput as PageOutput
-from openapi_client.models.search200_response import Search200Response as Search200Response
-from openapi_client.models.search200_response_data import Search200ResponseData as Search200ResponseData
-from openapi_client.models.search_request import SearchRequest as SearchRequest
-from openapi_client.models.search_request_extract import SearchRequestExtract as SearchRequestExtract
-from openapi_client.models.search_request_filters import SearchRequestFilters as SearchRequestFilters
-from openapi_client.models.search_request_lens import SearchRequestLens as SearchRequestLens
-from openapi_client.models.search_request_personalizations import SearchRequestPersonalizations as SearchRequestPersonalizations
-from openapi_client.models.search_request_personalizations_domains_inner import SearchRequestPersonalizationsDomainsInner as SearchRequestPersonalizationsDomainsInner
-from openapi_client.models.search_request_personalizations_regexes_inner import SearchRequestPersonalizationsRegexesInner as SearchRequestPersonalizationsRegexesInner
-from openapi_client.models.search_result import SearchResult as SearchResult
-from openapi_client.models.search_result_image import SearchResultImage as SearchResultImage
+from kagimcp.openapi_client.models.error_detail import ErrorDetail as ErrorDetail
+from kagimcp.openapi_client.models.error_envelope import ErrorEnvelope as ErrorEnvelope
+from kagimcp.openapi_client.models.extract_request import ExtractRequest as ExtractRequest
+from kagimcp.openapi_client.models.extract_response import ExtractResponse as ExtractResponse
+from kagimcp.openapi_client.models.meta import Meta as Meta
+from kagimcp.openapi_client.models.page_input import PageInput as PageInput
+from kagimcp.openapi_client.models.page_output import PageOutput as PageOutput
+from kagimcp.openapi_client.models.search200_response import Search200Response as Search200Response
+from kagimcp.openapi_client.models.search200_response_data import Search200ResponseData as Search200ResponseData
+from kagimcp.openapi_client.models.search_request import SearchRequest as SearchRequest
+from kagimcp.openapi_client.models.search_request_extract import SearchRequestExtract as SearchRequestExtract
+from kagimcp.openapi_client.models.search_request_filters import SearchRequestFilters as SearchRequestFilters
+from kagimcp.openapi_client.models.search_request_lens import SearchRequestLens as SearchRequestLens
+from kagimcp.openapi_client.models.search_request_personalizations import SearchRequestPersonalizations as SearchRequestPersonalizations
+from kagimcp.openapi_client.models.search_request_personalizations_domains_inner import SearchRequestPersonalizationsDomainsInner as SearchRequestPersonalizationsDomainsInner
+from kagimcp.openapi_client.models.search_request_personalizations_regexes_inner import SearchRequestPersonalizationsRegexesInner as SearchRequestPersonalizationsRegexesInner
+from kagimcp.openapi_client.models.search_result import SearchResult as SearchResult
+from kagimcp.openapi_client.models.search_result_image import SearchResultImage as SearchResultImage
 

@@ -18,22 +18,44 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictStr, field_validator
 from typing import Any, ClassVar, Dict, List, Optional, Union
 from typing_extensions import Annotated
-from openapi_client.models.page_input import PageInput
+from kagimcp.openapi_client.models.search_request_extract import SearchRequestExtract
+from kagimcp.openapi_client.models.search_request_filters import SearchRequestFilters
+from kagimcp.openapi_client.models.search_request_lens import SearchRequestLens
+from kagimcp.openapi_client.models.search_request_personalizations import SearchRequestPersonalizations
 from typing import Optional, Set
 from typing_extensions import Self
 from pydantic_core import to_jsonable_python
 
-class ExtractRequest(BaseModel):
+class SearchRequest(BaseModel):
     """
-    Request body for content extraction
+    Used to upload the search query
     """ # noqa: E501
-    pages: Annotated[List[PageInput], Field(min_length=1, max_length=10)] = Field(description="Array of pages to extract content from. Must contain 1-10 URLs. Each URL must be a valid HTTPS URL. ")
-    timeout: Optional[Union[Annotated[float, Field(le=10, strict=True, ge=0.5)], Annotated[int, Field(le=10, strict=True, ge=1)]]] = Field(default=None, description="Optional timeout in seconds for the extraction operation. Out of range values will be clamped back within range.  All URLs are fetched concurrently. This timeout applies a time budget for the entire bulk fetch operation. ")
+    query: StrictStr = Field(description="Search query to run.")
+    workflow: Optional[StrictStr] = Field(default='search', description="Type of results to return.")
     format: Optional[StrictStr] = Field(default='json', description="**(EXPERIMENTAL)** Format to serialize the API response as. The exact contents and structure of markdown output is still being worked on - please send your feedback!")
-    __properties: ClassVar[List[str]] = ["pages", "timeout", "format"]
+    lens_id: Optional[StrictStr] = Field(default=None, description="Lens to apply to the search. Can be a built-in lens's identifier or a lens ID as shown on https://kagi.com/settings/lenses when a lens is set to be shareable. Can be just the ID portion of the URL (`https://kagi.com/lenses/ID`) or the full URL.")
+    lens: Optional[SearchRequestLens] = None
+    timeout: Optional[Union[Annotated[float, Field(le=4, strict=True, ge=0.5)], Annotated[int, Field(le=4, strict=True, ge=1)]]] = Field(default=None, description="Number of seconds to allow for collecting search results. Lower values will return results more quickly, but may be lower quality or inconsistent between calls. If omitted, will use the latest recommended value by Kagi.")
+    page: Optional[Annotated[int, Field(le=10, strict=True, ge=1)]] = Field(default=None, description="Page number for paginated results. Must be between 1 and 10.")
+    limit: Optional[Annotated[int, Field(le=1024, strict=True, ge=1)]] = Field(default=None, description="Maximum number of results to return. Must be between 1 and 1024.  **NOTE:** This does not change the amount of results requested, it only limits the maximum amount returned. If omitted, the API always gives you the most results we can get in a single pass. ")
+    filters: Optional[SearchRequestFilters] = None
+    extract: Optional[SearchRequestExtract] = None
+    safe_search: Optional[StrictBool] = Field(default=True, description="Whether safe search is enabled, omitting potentially NSFW content.")
+    personalizations: Optional[SearchRequestPersonalizations] = None
+    __properties: ClassVar[List[str]] = ["query", "workflow", "format", "lens_id", "lens", "timeout", "page", "limit", "filters", "extract", "safe_search", "personalizations"]
+
+    @field_validator('workflow')
+    def workflow_validate_enum(cls, value):
+        """Validates the enum"""
+        if value is None:
+            return value
+
+        if value not in set(['search', 'images', 'videos', 'news', 'podcasts']):
+            raise ValueError("must be one of enum values ('search', 'images', 'videos', 'news', 'podcasts')")
+        return value
 
     @field_validator('format')
     def format_validate_enum(cls, value):
@@ -63,7 +85,7 @@ class ExtractRequest(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of ExtractRequest from a JSON string"""
+        """Create an instance of SearchRequest from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -84,18 +106,23 @@ class ExtractRequest(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of each item in pages (list)
-        _items = []
-        if self.pages:
-            for _item_pages in self.pages:
-                if _item_pages:
-                    _items.append(_item_pages.to_dict())
-            _dict['pages'] = _items
+        # override the default output from pydantic by calling `to_dict()` of lens
+        if self.lens:
+            _dict['lens'] = self.lens.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of filters
+        if self.filters:
+            _dict['filters'] = self.filters.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of extract
+        if self.extract:
+            _dict['extract'] = self.extract.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of personalizations
+        if self.personalizations:
+            _dict['personalizations'] = self.personalizations.to_dict()
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of ExtractRequest from a dict"""
+        """Create an instance of SearchRequest from a dict"""
         if obj is None:
             return None
 
@@ -103,9 +130,18 @@ class ExtractRequest(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "pages": [PageInput.from_dict(_item) for _item in obj["pages"]] if obj.get("pages") is not None else None,
+            "query": obj.get("query"),
+            "workflow": obj.get("workflow") if obj.get("workflow") is not None else 'search',
+            "format": obj.get("format") if obj.get("format") is not None else 'json',
+            "lens_id": obj.get("lens_id"),
+            "lens": SearchRequestLens.from_dict(obj["lens"]) if obj.get("lens") is not None else None,
             "timeout": obj.get("timeout"),
-            "format": obj.get("format") if obj.get("format") is not None else 'json'
+            "page": obj.get("page"),
+            "limit": obj.get("limit"),
+            "filters": SearchRequestFilters.from_dict(obj["filters"]) if obj.get("filters") is not None else None,
+            "extract": SearchRequestExtract.from_dict(obj["extract"]) if obj.get("extract") is not None else None,
+            "safe_search": obj.get("safe_search") if obj.get("safe_search") is not None else True,
+            "personalizations": SearchRequestPersonalizations.from_dict(obj["personalizations"]) if obj.get("personalizations") is not None else None
         })
         return _obj
 

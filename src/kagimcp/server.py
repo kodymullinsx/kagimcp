@@ -3,9 +3,10 @@ from datetime import date
 import json
 import os
 import argparse
+from urllib.parse import urlparse
 
 from urllib3.util.retry import Retry
-from openapi_client import (
+from kagimcp.openapi_client import (
     ApiClient,
     Configuration,
     ExtractApi,
@@ -17,7 +18,7 @@ from openapi_client import (
     SearchRequestFilters,
     SearchRequestLens,
 )
-from openapi_client.exceptions import ApiException
+from kagimcp.openapi_client.exceptions import ApiException
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
 from starlette.requests import Request
@@ -90,20 +91,33 @@ def _resolve_api_key() -> str:
     )
 
 
-@lru_cache(maxsize=128)
-def _clients_for(key: str) -> tuple[SearchApi, ExtractApi]:
-    config = Configuration(access_token=key)
-    config.retries = Retry(
+def _retry_policy() -> Retry:
+    return Retry(
         total=_MAX_RETRIES,
         backoff_factor=0.5,
         backoff_max=10.0,
         status_forcelist=list(_RETRY_STATUSES),
-        allowed_methods=None,
+        allowed_methods=Retry.DEFAULT_ALLOWED_METHODS,
         respect_retry_after_header=True,
         raise_on_status=False,
     )
+
+
+@lru_cache(maxsize=1)
+def _clients() -> tuple[SearchApi, ExtractApi]:
+    config = Configuration()
+    config.retries = _retry_policy()
     api_client = ApiClient(config)
     return SearchApi(api_client), ExtractApi(api_client)
+
+
+def _request_auth_for_key(key: str) -> dict[str, str]:
+    return {
+        "type": "bearer",
+        "in": "header",
+        "key": "Authorization",
+        "value": f"Bearer {key}",
+    }
 
 
 mcp = FastMCP("kagimcp", auth=_KagiKeyPassthroughVerifier())
@@ -175,13 +189,27 @@ def _trace_suffix(headers: Any) -> str:
 
 
 def _format_error_body(body: str) -> str:
-    """Pull message(s) out of a Kagi v1 error envelope (`errors[].message`)."""
+    """Pull message(s) out of a Kagi v1 error envelope."""
     try:
         parsed = json.loads(body)
-        errors = parsed.get("errors") or []
-        return "; ".join(e.get("message", "") for e in errors) or body
+        errors = parsed.get("error") or parsed.get("errors") or []
+        messages = [
+            error.get("message", "")
+            for error in errors
+            if isinstance(error, dict) and error.get("message")
+        ]
+        return "; ".join(messages) or body
     except Exception:
         return body
+
+
+def _validate_extract_url(url: str) -> str:
+    if not url:
+        raise ValueError("Extract called with no URL.")
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise ValueError("Extract URL must be an HTTPS URL with a hostname.")
+    return url
 
 
 @mcp.tool()
@@ -278,7 +306,8 @@ def kagi_search_fetch(
         SearchRequestFilters(after=after, before=before) if after or before else None
     )
 
-    search_api, _ = _clients_for(_resolve_api_key())
+    api_key = _resolve_api_key()
+    search_api, _ = _clients()
     try:
         response = search_api.search_without_preload_content(
             SearchRequest(
@@ -292,6 +321,7 @@ def kagi_search_fetch(
                 filters=filters,
             ),
             _request_timeout=_SEARCH_TIMEOUT,
+            _request_auth=_request_auth_for_key(api_key),
         )
     except ApiException as e:
         raise ValueError(
@@ -314,15 +344,15 @@ def kagi_extract(
     url: str = Field(description="The HTTPS URL of the page to extract content from."),
 ) -> str:
     """Extract the content of a web page as markdown using the Kagi Extract API. Use this to read the full content of a page when needed."""
-    if not url:
-        raise ValueError("Extract called with no URL.")
-
-    _, extract_api = _clients_for(_resolve_api_key())
+    url = _validate_extract_url(url)
+    api_key = _resolve_api_key()
+    _, extract_api = _clients()
     try:
         # JSON mode returns a structured envelope whose page payload is still markdown.
         response = extract_api.extract_content(
             ExtractRequest(pages=[PageInput(url=url)], format="json"),
             _request_timeout=_EXTRACT_TIMEOUT,
+            _request_auth=_request_auth_for_key(api_key),
         )
     except ApiException as e:
         raise ValueError(

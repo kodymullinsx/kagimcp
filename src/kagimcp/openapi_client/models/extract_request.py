@@ -18,22 +18,32 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict, Field
-from typing import Any, ClassVar, Dict, List, Optional
-from openapi_client.models.error_detail import ErrorDetail
-from openapi_client.models.meta import Meta
+from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing_extensions import Annotated
+from kagimcp.openapi_client.models.page_input import PageInput
 from typing import Optional, Set
 from typing_extensions import Self
 from pydantic_core import to_jsonable_python
 
-class ErrorEnvelope(BaseModel):
+class ExtractRequest(BaseModel):
     """
-    API error response envelope containing metadata and an array of error details
+    Request body for content extraction
     """ # noqa: E501
-    meta: Meta
-    data: Optional[List[Any]] = Field(default=None, description="Empty data array when error occurs")
-    error: List[ErrorDetail] = Field(description="Array of error detail objects describing what went wrong")
-    __properties: ClassVar[List[str]] = ["meta", "data", "error"]
+    pages: Annotated[List[PageInput], Field(min_length=1, max_length=10)] = Field(description="Array of pages to extract content from. Must contain 1-10 URLs. Each URL must be a valid HTTPS URL. ")
+    timeout: Optional[Union[Annotated[float, Field(le=10, strict=True, ge=0.5)], Annotated[int, Field(le=10, strict=True, ge=1)]]] = Field(default=None, description="Optional timeout in seconds for the extraction operation. Out of range values will be clamped back within range.  All URLs are fetched concurrently. This timeout applies a time budget for the entire bulk fetch operation. ")
+    format: Optional[StrictStr] = Field(default='json', description="**(EXPERIMENTAL)** Format to serialize the API response as. The exact contents and structure of markdown output is still being worked on - please send your feedback!")
+    __properties: ClassVar[List[str]] = ["pages", "timeout", "format"]
+
+    @field_validator('format')
+    def format_validate_enum(cls, value):
+        """Validates the enum"""
+        if value is None:
+            return value
+
+        if value not in set(['json', 'markdown']):
+            raise ValueError("must be one of enum values ('json', 'markdown')")
+        return value
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -53,7 +63,7 @@ class ErrorEnvelope(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of ErrorEnvelope from a JSON string"""
+        """Create an instance of ExtractRequest from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -74,26 +84,18 @@ class ErrorEnvelope(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of meta
-        if self.meta:
-            _dict['meta'] = self.meta.to_dict()
-        # override the default output from pydantic by calling `to_dict()` of each item in error (list)
+        # override the default output from pydantic by calling `to_dict()` of each item in pages (list)
         _items = []
-        if self.error:
-            for _item_error in self.error:
-                if _item_error:
-                    _items.append(_item_error.to_dict())
-            _dict['error'] = _items
-        # set to None if data (nullable) is None
-        # and model_fields_set contains the field
-        if self.data is None and "data" in self.model_fields_set:
-            _dict['data'] = None
-
+        if self.pages:
+            for _item_pages in self.pages:
+                if _item_pages:
+                    _items.append(_item_pages.to_dict())
+            _dict['pages'] = _items
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of ErrorEnvelope from a dict"""
+        """Create an instance of ExtractRequest from a dict"""
         if obj is None:
             return None
 
@@ -101,9 +103,9 @@ class ErrorEnvelope(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "meta": Meta.from_dict(obj["meta"]) if obj.get("meta") is not None else None,
-            "data": obj.get("data"),
-            "error": [ErrorDetail.from_dict(_item) for _item in obj["error"]] if obj.get("error") is not None else None
+            "pages": [PageInput.from_dict(_item) for _item in obj["pages"]] if obj.get("pages") is not None else None,
+            "timeout": obj.get("timeout"),
+            "format": obj.get("format") if obj.get("format") is not None else 'json'
         })
         return _obj
 

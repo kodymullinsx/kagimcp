@@ -19,13 +19,15 @@ dependencies = [
 Homepage = "https://github.com/kagisearch/kagi-mcp"
 Issues = "https://github.com/kagisearch/kagi-mcp/issues"
 
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
 [tool.hatch.build.targets.wheel]
-packages = ["src/kagimcp", "src/openapi_client"]
+packages = ["src/kagimcp"]
 
 [tool.hatch.build.targets.sdist]
 include = [
     "/src/kagimcp",
-    "/src/openapi_client",
     "/README.md",
     "/LICENSE",
     "/pyproject.toml",

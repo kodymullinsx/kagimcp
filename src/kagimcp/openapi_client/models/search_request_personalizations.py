@@ -18,21 +18,21 @@ import pprint
 import re  # noqa: F401
 import json
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, ClassVar, Dict, List, Optional
-from openapi_client.models.meta import Meta
-from openapi_client.models.search200_response_data import Search200ResponseData
+from kagimcp.openapi_client.models.search_request_personalizations_domains_inner import SearchRequestPersonalizationsDomainsInner
+from kagimcp.openapi_client.models.search_request_personalizations_regexes_inner import SearchRequestPersonalizationsRegexesInner
 from typing import Optional, Set
 from typing_extensions import Self
 from pydantic_core import to_jsonable_python
 
-class Search200Response(BaseModel):
+class SearchRequestPersonalizations(BaseModel):
     """
-    A response with a description and results references used
+    Personalization rules to customize search result ranking. Allows specifying domain biases and regex-based replacements.
     """ # noqa: E501
-    meta: Optional[Meta] = None
-    data: Optional[Search200ResponseData] = None
-    __properties: ClassVar[List[str]] = ["meta", "data"]
+    domains: Optional[List[SearchRequestPersonalizationsDomainsInner]] = Field(default=None, description="Domain-level personalization rules (maximum 1000 rules). Each rule can boost or lower the ranking of results from specific domains.")
+    regexes: Optional[List[SearchRequestPersonalizationsRegexesInner]] = Field(default=None, description="Regex-based personalization rules (maximum 1000 rules, max 1000 bytes per pattern).")
+    __properties: ClassVar[List[str]] = ["domains", "regexes"]
 
     model_config = ConfigDict(
         validate_by_name=True,
@@ -52,7 +52,7 @@ class Search200Response(BaseModel):
 
     @classmethod
     def from_json(cls, json_str: str) -> Optional[Self]:
-        """Create an instance of Search200Response from a JSON string"""
+        """Create an instance of SearchRequestPersonalizations from a JSON string"""
         return cls.from_dict(json.loads(json_str))
 
     def to_dict(self) -> Dict[str, Any]:
@@ -73,17 +73,25 @@ class Search200Response(BaseModel):
             exclude=excluded_fields,
             exclude_none=True,
         )
-        # override the default output from pydantic by calling `to_dict()` of meta
-        if self.meta:
-            _dict['meta'] = self.meta.to_dict()
-        # override the default output from pydantic by calling `to_dict()` of data
-        if self.data:
-            _dict['data'] = self.data.to_dict()
+        # override the default output from pydantic by calling `to_dict()` of each item in domains (list)
+        _items = []
+        if self.domains:
+            for _item_domains in self.domains:
+                if _item_domains:
+                    _items.append(_item_domains.to_dict())
+            _dict['domains'] = _items
+        # override the default output from pydantic by calling `to_dict()` of each item in regexes (list)
+        _items = []
+        if self.regexes:
+            for _item_regexes in self.regexes:
+                if _item_regexes:
+                    _items.append(_item_regexes.to_dict())
+            _dict['regexes'] = _items
         return _dict
 
     @classmethod
     def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-        """Create an instance of Search200Response from a dict"""
+        """Create an instance of SearchRequestPersonalizations from a dict"""
         if obj is None:
             return None
 
@@ -91,8 +99,8 @@ class Search200Response(BaseModel):
             return cls.model_validate(obj)
 
         _obj = cls.model_validate({
-            "meta": Meta.from_dict(obj["meta"]) if obj.get("meta") is not None else None,
-            "data": Search200ResponseData.from_dict(obj["data"]) if obj.get("data") is not None else None
+            "domains": [SearchRequestPersonalizationsDomainsInner.from_dict(_item) for _item in obj["domains"]] if obj.get("domains") is not None else None,
+            "regexes": [SearchRequestPersonalizationsRegexesInner.from_dict(_item) for _item in obj["regexes"]] if obj.get("regexes") is not None else None
         })
         return _obj
 
