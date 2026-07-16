@@ -1,47 +1,47 @@
 # kagimcp
 
-Fork of Kagi's official MCP server, exposing Kagi's Search API (web/news/videos/podcasts/images) and Extract API (page-to-markdown) as tools for MCP clients like Claude Desktop, Claude Code, and Codex CLI.
+## Project Context
 
-## Memory Context
-- Kagi API/MCP memory lives at `/Users/kodymullins/Workspace/Memory/tooling/kagi-search/memory.md`.
-- Use memory for cost, install/config posture, tool availability, and secret-handling context. Use the live checkout (`README.md`, `pyproject.toml`, `src/kagimcp/server.py`) for implementation details.
-- Never print, commit, or copy the raw `KAGI_API_KEY`; keep local and MCP config outputs redacted.
+- Canonical checkout: `/Users/kodymullins/Workspace/tooling/mcp/kagimcp`.
+- This is a fork of Kagi's upstream MCP server. Keep upstream behavior recognizable and isolate local safety fixes.
+- Memory context lives at `/Users/kodymullins/Workspace/Memory/tooling/kagi-search/memory.md`. Use it for Kagi API/MCP posture, cost, install, and secret-handling context; use live code/docs for implementation details.
 
-## Upstream Status
-This is a **fork of an upstream open-source project**, not locally authored code.
-- `origin` = `github.com/kodymullinsx/kagimcp.git`, `upstream` = `github.com/kagisearch/kagimcp.git`
-- LICENSE (MIT) copyright holder is Kagi Search; `pyproject.toml` author is Kagi's maintainer (Rehan Ali Rana)
-- 84 commits of genuine multi-contributor history dating to Dec 2024
-- **Local changes: one commit**, `35ea8a4` "Remediate Kagi MCP client safety issues" — relocated the vendored OpenAPI client under `src/kagimcp/`, added request-scoped auth handling, added an HTTPS/SSRF URL guard for `kagi_extract`, and added the two test files
+## Key Paths
 
-## Tech Stack
-- Python 3.12, managed with `uv` / `hatchling`
-- `fastmcp~=3.2`, `pydantic~=2.12.5`, `urllib3`
-- Vendored, generated OpenAPI client at `src/kagimcp/openapi_client/`
+| Path | Purpose |
+|---|---|
+| `src/kagimcp/server.py` | MCP server, tool definitions, transport, auth, retry, and URL validation |
+| `src/kagimcp/openapi_client/` | Vendored generated Kagi OpenAPI client |
+| `tests/test_server.py` | Server behavior, auth, retry, validation tests |
+| `tests/test_packaging_imports.py` | Packaging/import regression coverage |
+| `pyproject.toml` | Python 3.12 package metadata and console script |
+| `Dockerfile` | Hosted-container path; currently installs the published PyPI package, not local source |
 
-## Structure
+## Commands
+
+```bash
+uv sync
+uv run pytest
+KAGI_API_KEY="$(secret KAGI_API_KEY)" uv run kagimcp
+uv run kagimcp --http --host 0.0.0.0 --port 8000
 ```
-kagimcp/
-├── Dockerfile, LICENSE (MIT), README.md, pyproject.toml, uv.lock
-├── src/kagimcp/{__init__.py, server.py, openapi_client/}
-└── tests/{test_server.py, test_packaging_imports.py}
+
+Inspector smoke:
+
+```bash
+npx @modelcontextprotocol/inspector uv --directory /ABSOLUTE/PATH/TO/kagimcp run kagimcp
 ```
 
-## Running
-```
-uvx kagimcp                                          # stdio mode (Claude Desktop/Code config)
-uv run kagimcp --http --host 0.0.0.0 --port 8000     # HTTP mode
-```
-Note: the Dockerfile pulls the published `kagimcp==1.0.0` from PyPI, not local source.
+## Working Rules
 
-## Authentication
-- Stdio mode: `KAGI_API_KEY` environment variable
-- HTTP mode: multi-tenant, expects a per-request `Authorization: Bearer <key>` header; pass-through verifier does no local validation — Kagi's API validates the key
+- Never print or commit `KAGI_API_KEY`. Inject it only into the consuming process from the machine secrets inventory, as above; never run `secret KAGI_API_KEY` as a standalone captured command.
+- Preserve request-scoped auth in HTTP mode. HTTP mode is multi-tenant and should read `Authorization: Bearer ...` per request.
+- Preserve the `kagi_extract` HTTPS/SSRF guard. Do not weaken URL validation without an explicit security review.
+- Search and Extract are billable POST operations; do not add retry behavior that replays billable requests unless the user explicitly accepts that risk.
+- If editing generated OpenAPI client code, identify whether regeneration is available before hand-editing large generated surfaces.
 
-## Notable Quirks
-- `KAGI_HIDDEN_PARAMS` hides certain search params from the LLM-visible tool schema via fastmcp's `ArgTransformConfig`
-- Mutual exclusivity enforced between `lens_id` and domain/time filters
-- `/healthz` route for container health checks; `--cors-origins` flag for HTTP mode
-- No `.env.example` or `smithery.yaml` present, despite README referencing Smithery (a "drop smithery" commit exists in history)
-- Retry policy intentionally skips retries on POST/billable operations (covered by tests)
-- `kagi_extract` URL validation rejects `file://`, plain `http://`, and malformed URLs (SSRF guard, locally added)
+## Verification
+
+- Run `uv run pytest` for Python code changes.
+- For MCP contract changes, also inspect `tools/list` through the MCP inspector or HTTP transport with a redacted bearer token.
+- For packaging changes, verify `uv run kagimcp` imports the local checkout and `tests/test_packaging_imports.py` still passes.

@@ -22,7 +22,7 @@
 ```bash
 uv sync
 uv run pytest
-KAGI_API_KEY=<redacted> uv run kagimcp
+KAGI_API_KEY="$(secret KAGI_API_KEY)" uv run kagimcp
 uv run kagimcp --http --host 0.0.0.0 --port 8000
 ```
 
@@ -34,7 +34,7 @@ npx @modelcontextprotocol/inspector uv --directory /ABSOLUTE/PATH/TO/kagimcp run
 
 ## Working Rules
 
-- Never print or commit `KAGI_API_KEY`. Use env vars or the machine secrets inventory, and keep values redacted in output.
+- Never print or commit `KAGI_API_KEY`. Inject it only into the consuming process from the machine secrets inventory, as above; never run `secret KAGI_API_KEY` as a standalone captured command.
 - Preserve request-scoped auth in HTTP mode. HTTP mode is multi-tenant and should read `Authorization: Bearer ...` per request.
 - Preserve the `kagi_extract` HTTPS/SSRF guard. Do not weaken URL validation without an explicit security review.
 - Search and Extract are billable POST operations; do not add retry behavior that replays billable requests unless the user explicitly accepts that risk.
