@@ -3,6 +3,7 @@ from datetime import date
 import json
 import os
 import argparse
+from importlib.metadata import PackageNotFoundError, version
 from urllib.parse import urlparse
 
 from urllib3.util.retry import Retry
@@ -32,6 +33,46 @@ from functools import lru_cache
 # Optional fallback for stdio / single-tenant use. In HTTP mode the key is read
 # per-request from the Authorization header instead.
 _api_key_env = os.environ.get("KAGI_API_KEY")
+
+try:
+    _USER_AGENT = f"KagiMCP/{version('kagimcp')}"
+except PackageNotFoundError:
+    _USER_AGENT = "KagiMCP"
+
+
+def _api_host_from_env() -> str | None:
+    raw = os.environ.get("KAGI_API_HOST", "").strip()
+    if not raw:
+        return None
+
+    parsed = urlparse(raw)
+    has_query_or_fragment_delimiter = "?" in raw or "#" in raw
+    try:
+        parsed.port
+    except ValueError as error:
+        raise ValueError(f"KAGI_API_HOST has an invalid port: {error}") from error
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or has_query_or_fragment_delimiter
+    ):
+        raise ValueError(
+            "KAGI_API_HOST must be an HTTPS URL without credentials, a query, or a fragment."
+        )
+
+    hostname = parsed.hostname.lower()
+    is_kagi_host = hostname == "kagi.com" or hostname.endswith(".kagi.com")
+    if not is_kagi_host and os.environ.get("KAGI_ALLOW_CUSTOM_API_HOST") != "1":
+        raise ValueError(
+            "A non-Kagi KAGI_API_HOST can receive the bearer API key; "
+            "set KAGI_ALLOW_CUSTOM_API_HOST=1 to opt in explicitly."
+        )
+
+    return raw.rstrip("/")
 
 
 def _timeout_from_env(name: str, default: float) -> float:
@@ -66,6 +107,7 @@ def _max_retries_from_env() -> int:
 
 _MAX_RETRIES = _max_retries_from_env()
 _RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+
 
 class _KagiKeyPassthroughVerifier(TokenVerifier):
     """Accepts any non-empty bearer token; Kagi itself validates the key."""
@@ -105,9 +147,10 @@ def _retry_policy() -> Retry:
 
 @lru_cache(maxsize=1)
 def _clients() -> tuple[SearchApi, ExtractApi]:
-    config = Configuration()
+    config = Configuration(host=_api_host_from_env())
     config.retries = _retry_policy()
     api_client = ApiClient(config)
+    api_client.user_agent = _USER_AGENT
     return SearchApi(api_client), ExtractApi(api_client)
 
 
@@ -367,6 +410,8 @@ def kagi_extract(
     if not (pages := response.data) or not pages[0].markdown:
         if errors := response.errors:
             raise ValueError(f"Kagi Extract API error: {errors}{suffix}")
+        if pages and (page_error := pages[0].error):
+            raise ValueError(f"Kagi Extract API error: {page_error}{suffix}")
         raise ValueError(f"Kagi Extract API returned no content.{suffix}")
 
     return pages[0].markdown

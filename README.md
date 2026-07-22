@@ -111,11 +111,17 @@ Edit the OpenCode configuration file in `~/.config/opencode/opencode.json` and a
 Environment variable | Description
 --- | ---
 `KAGI_API_KEY` | Required Kagi API key.
+`KAGI_API_HOST` | Optional HTTPS Kagi API base URL override.
+`KAGI_ALLOW_CUSTOM_API_HOST` | Set to `1` to explicitly allow a non-Kagi `KAGI_API_HOST` to receive the bearer API key.
 `FASTMCP_LOG_LEVEL` | Logging level, for example `ERROR`.
 `KAGI_SEARCH_TIMEOUT` | Per-attempt search timeout in seconds. Defaults to `10`.
 `KAGI_EXTRACT_TIMEOUT` | Per-attempt extract timeout in seconds. Defaults to `30`.
 `KAGI_MAX_RETRIES` | Max retry attempts after the first request for retry-eligible methods. Defaults to `2`; set `0` to disable retries.
 `KAGI_HIDDEN_PARAMS` | Comma-separated search params to hide from the LLM-facing schema.
+
+`KAGI_API_HOST` rejects HTTP URLs, embedded credentials, queries, and fragments.
+Hosts outside `kagi.com` require the additional `KAGI_ALLOW_CUSTOM_API_HOST=1`
+acknowledgement because the configured server receives the Kagi bearer API key.
 
 Kagi Search and Extract use POST requests and are not retried by default, to avoid replaying potentially billable operations. Timeout values are per upstream HTTP request attempt. Future retry-eligible safe or idempotent calls may take longer than the per-attempt timeout because of retries, backoff, or `Retry-After` handling.
 
@@ -155,7 +161,7 @@ KAGI_API_KEY=<YOUR_API_KEY_HERE> uv run kagimcp --http --host 0.0.0.0 --port 800
 
 HTTP mode is multi-tenant: each request supplies its API key via the
 `Authorization: Bearer <key>` header instead of a server-wide env var, so one
-instance can serve multiple users. The repo ships a `Dockerfile` that installs a pinned `kagimcp` from PyPI and
+instance can serve multiple users. The repo ships a `Dockerfile` that installs the checked-out source and
 runs it in HTTP mode. The container respects `$PORT` so it works on any
 platform that injects one (Railway, Render, Cloud Run, Fly.io, etc.).
 
@@ -176,7 +182,7 @@ curl -sL http://127.0.0.1:8000/mcp -X POST \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-To bump the version in production, edit the pin in the `Dockerfile` and redeploy.
+To deploy a new version, update the checkout and rebuild the image.
 
 ## Debugging
 

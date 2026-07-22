@@ -1,4 +1,5 @@
 import importlib
+from importlib.metadata import version
 from types import SimpleNamespace
 
 import pytest
@@ -19,7 +20,8 @@ class _ExtractResponse:
 
 
 class _SearchApi:
-    def __init__(self, _api_client):
+    def __init__(self, api_client):
+        self.api_client = api_client
         self.calls = []
 
     def search_without_preload_content(self, request, **kwargs):
@@ -28,12 +30,23 @@ class _SearchApi:
 
 
 class _ExtractApi:
-    def __init__(self, _api_client):
+    def __init__(self, api_client):
+        self.api_client = api_client
         self.calls = []
 
     def extract_content(self, request, **kwargs):
         self.calls.append((request, kwargs))
         return _ExtractResponse()
+
+
+class _PageErrorExtractApi(_ExtractApi):
+    def extract_content(self, request, **kwargs):
+        self.calls.append((request, kwargs))
+        return SimpleNamespace(
+            meta=None,
+            errors=None,
+            data=[SimpleNamespace(markdown=None, error="Extraction was blocked")],
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -64,6 +77,82 @@ def test_retry_policy_does_not_retry_post():
 
     assert retry.allowed_methods == server.Retry.DEFAULT_ALLOWED_METHODS
     assert "POST" not in retry.allowed_methods
+
+
+def test_clients_send_kagimcp_user_agent(monkeypatch):
+    monkeypatch.setattr(server, "SearchApi", _SearchApi)
+    monkeypatch.setattr(server, "ExtractApi", _ExtractApi)
+
+    search_api, _ = server._clients()
+
+    assert version("kagimcp") == "1.0.2"
+    assert server._USER_AGENT == "KagiMCP/1.0.2"
+    assert search_api.api_client.user_agent == server._USER_AGENT
+
+
+def test_clients_keep_default_kagi_api_host(monkeypatch):
+    monkeypatch.delenv("KAGI_API_HOST", raising=False)
+    monkeypatch.setattr(server, "SearchApi", _SearchApi)
+    monkeypatch.setattr(server, "ExtractApi", _ExtractApi)
+
+    search_api, _ = server._clients()
+
+    assert search_api.api_client.configuration.host == "https://kagi.com/api/v1"
+
+
+def test_clients_use_validated_api_host_override(monkeypatch):
+    monkeypatch.setenv("KAGI_API_HOST", "https://api.kagi.com/api/v1")
+    monkeypatch.setattr(server, "SearchApi", _SearchApi)
+    monkeypatch.setattr(server, "ExtractApi", _ExtractApi)
+
+    search_api, _ = server._clients()
+
+    assert search_api.api_client.configuration.host == "https://api.kagi.com/api/v1"
+
+
+def test_clients_normalize_custom_api_host_before_serializing_requests(monkeypatch):
+    monkeypatch.setenv("KAGI_API_HOST", "https://proxy.example/api/v1/")
+    monkeypatch.setenv("KAGI_ALLOW_CUSTOM_API_HOST", "1")
+    monkeypatch.setattr(server, "SearchApi", _SearchApi)
+    monkeypatch.setattr(server, "ExtractApi", _ExtractApi)
+
+    search_api, _ = server._clients()
+    serialized = search_api.api_client.param_serialize(
+        method="POST",
+        resource_path="/search",
+    )
+
+    assert serialized[1] == "https://proxy.example/api/v1/search"
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "http://kagi.com/api/v1",
+        "https://user:password@kagi.com/api/v1",
+        "https://kagi.com:not-a-port/api/v1",
+        "https://kagi.com/api/v1?redirect=https://example.com",
+        "https://kagi.com/api/v1?",
+        "https://kagi.com/api/v1#fragment",
+        "https://kagi.com/api/v1#",
+    ],
+)
+def test_api_host_override_rejects_unsafe_urls(monkeypatch, host):
+    monkeypatch.setenv("KAGI_API_HOST", host)
+
+    with pytest.raises(ValueError, match="KAGI_API_HOST"):
+        server._api_host_from_env()
+
+
+def test_non_kagi_api_host_requires_explicit_opt_in(monkeypatch):
+    monkeypatch.setenv("KAGI_API_HOST", "https://proxy.example/api/v1")
+    monkeypatch.delenv("KAGI_ALLOW_CUSTOM_API_HOST", raising=False)
+
+    with pytest.raises(ValueError, match="KAGI_ALLOW_CUSTOM_API_HOST=1"):
+        server._api_host_from_env()
+
+    monkeypatch.setenv("KAGI_ALLOW_CUSTOM_API_HOST", "1")
+    assert server._api_host_from_env() == "https://proxy.example/api/v1"
 
 
 def test_max_retries_zero_disables_retries(monkeypatch):
@@ -110,6 +199,15 @@ def test_extract_passes_request_scoped_auth(monkeypatch):
     _, extract_api = server._clients()
 
     assert extract_api.calls[-1][1]["_request_auth"]["value"] == "Bearer extract-token"
+
+
+def test_extract_surfaces_page_level_error(monkeypatch):
+    monkeypatch.setattr(server, "SearchApi", _SearchApi)
+    monkeypatch.setattr(server, "ExtractApi", _PageErrorExtractApi)
+    monkeypatch.setattr(server, "_resolve_api_key", lambda: "token")
+
+    with pytest.raises(ValueError, match="Extraction was blocked"):
+        server.kagi_extract("https://example.com/path")
 
 
 @pytest.mark.parametrize(
