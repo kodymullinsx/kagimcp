@@ -7,7 +7,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN pip install kagimcp==1.0.0
+COPY pyproject.toml README.md LICENSE ./
+COPY src ./src
+
+RUN pip install .
 
 ENV PORT=8000
 EXPOSE 8000
